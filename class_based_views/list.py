@@ -14,31 +14,27 @@ class ListView(View):
         self._load_config_values(kwargs, 
             paginate_by = None,
             allow_empty = True,
-            template_object_name = None,
-           queryset = None,
+            template_object_name = 'object',
+            queryset = None,
             itemsset = None,
         )
         super(ListView, self).__init__(**kwargs)
 
-    def GET(self, *args, **kwargs):
-        self.page = kwargs.get('page', None)
-        self.items = self.get_items()
-        paginator, page, self.items = self.paginate_items()
-        template = self.get_template()
-        return super(ListView, self).GET(paginator, page)
+    def parse_params(self, *args, **kwargs):
+        super(ListView, self).parse_params(*args, **kwargs)
 
     def get_items(self):
         """
         Get the list of items for this view. This must be an interable, and may
         be a queryset (in which qs-specific behavior will be enabled).
         """
-        queryset = self.get_queryset() 
-        if queryset:
-            return queryset
-        if self.itemsset is not None:
-            return self.itemsset
-
-        raise ImproperlyConfigured("'%s' must define 'queryset' or 'items'"
+        queryset = self.get_queryset()
+        if queryset is not None:
+            self.items = queryset
+        elif self.itemsset is not None:
+            self.items = self.itemsset
+        else:
+            raise ImproperlyConfigured("'%s' must define 'queryset' or 'items'"
                                         % self.__class__.__name__)
 
     def get_queryset(self):
@@ -69,22 +65,27 @@ class ListView(View):
         if not paginate_by:
             if not allow_empty and len(self.items) == 0:
                 raise Http404("Empty list and '%s.allow_empty' is False." % self.__class__.__name__)
-            return (None, None, self.items)
+            self.paginator = None
+            self.page = None
+            self.items = self.items
+        else:
+            paginator = Paginator(self.items, paginate_by, allow_empty_first_page=allow_empty)
+            # page_descriptor can be either a page number or 'last'
+            page_descriptor = getattr(self, 'page', self.request.GET.get('page', 1))
+            try:
+                page_number = int(page_descriptor)
+            except ValueError:
+                if page_descriptor == 'last':
+                    page_number = paginator.num_pages
+                else:
+                    raise Http404("Page is not 'last', nor can it be converted to an int.")
+            try:
+                self.paginator = paginator
+                self.page = paginator.page(page_number)
+                self.items = self.page.object_list
 
-        paginator = Paginator(self.items, paginate_by, allow_empty_first_page=allow_empty)
-        page = self.page or self.request.GET.get('page', 1)
-        try:
-            page_number = int(page)
-        except ValueError:
-            if page == 'last':
-                page_number = paginator.num_pages
-            else:
-                raise Http404("Page is not 'last', nor can it be converted to an int.")
-        try:
-            page = paginator.page(page_number)
-            return (paginator, page, page.object_list)
-        except InvalidPage:
-            raise Http404('Invalid page (%s)' % page_number)
+            except InvalidPage:
+                raise Http404('Invalid page (%s)' % page_number)
 
     def get_template_names(self, suffix='list'):
         """
@@ -97,37 +98,24 @@ class ListView(View):
         # app and model name. This name gets put at the end of the template
         # name list so that user-supplied names override the automatically-
         # generated ones.
-        if hasattr(self.items, 'model'):
-            opts = self.items.model._meta
+        if hasattr(self.queryset, 'model'):
+            opts = self.queryset.model._meta
             names.append("%s/%s_%s.html" % (opts.app_label, opts.object_name.lower(), suffix))
 
         return names
 
-    def get_context(self, paginator, page, context=None):
+    def get_context(self):
         """
         Get the context for this view.
         """
-        if not context:
-            context = {}
+        context = super(ListView, self).get_context()
+        self.get_items()
+        self.paginate_items()
+        template_list_name = '%s_list' % self.template_object_name
         context.update({
-            'paginator': paginator,
-            'object_list': self.items,
-            'page_obj': page,
-            'is_paginated':  paginator is not None
+            'paginator': self.paginator,
+            'page_obj': self.page,
+            'is_paginated':  self.paginator is not None,
+            template_list_name: self.items,
         })
-        context = super(ListView, self).get_context(context)
-        template_obj_name = self.get_template_object_name()
-        context[template_obj_name or 'object_list'] = self.items
         return context
-
-    def get_template_object_name(self):
-        """
-        Get the name of the item to be used in the context.
-        """
-        if self.template_object_name:
-            return "%s_list" % self.template_object_name
-        elif hasattr(self.items, 'model'):
-            return smart_str(items.model._meta.verbose_name_plural)
-        else:
-            return None
-    

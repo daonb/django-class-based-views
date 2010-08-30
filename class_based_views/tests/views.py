@@ -1,6 +1,5 @@
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
-from django.utils.decorators import method_decorator
 
 from class_based_views.tests.models import Author, Book
 from class_based_views.tests.forms import AuthorForm
@@ -15,11 +14,17 @@ class ObjectDetail(class_based_views.DetailView):
 
 class AuthorDetail(class_based_views.DetailView):
     queryset = Author.objects.all()
+    template_resource_name = 'author'
 
 
 class DecoratedAboutView(class_based_views.View):
     template_name = 'tests/about.html'
-    decorators = [login_required,]
+    # decorators = [login_required,]
+
+    @class_based_views.method_decorator(login_required)
+    def GET(self, *args, **kwargs):
+        super(DecoratedAboutView, self).GET(*args, **kwargs)
+
 
 
 

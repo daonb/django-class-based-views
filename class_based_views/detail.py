@@ -1,4 +1,4 @@
-from class_based_views import View
+from base import View
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.http import Http404
 import re
@@ -20,16 +20,16 @@ class DetailView(View):
         )
         super(DetailView, self).__init__(**kwargs)
     
-    def get_resource(self, *args, **kwargs):
+    def get_resource(self):
         """
         Get the resource this request wraps. By default this requires
         `self.queryset` and a `pk` or `slug` argument in the URLconf, but
         subclasses can override this to return any object.
         """
-        obj = self.get_object(*args, **kwargs)
-        return {self.get_template_resource_name(obj): obj}
+        obj = self.get_object()
+        return {self.template_resource_name: obj}
     
-    def get_object(self, pk=None, slug=None):
+    def get_object(self):
         """
         FIXME: Does separating this out from get_resource suck?
         This might suck.
@@ -39,9 +39,10 @@ class DetailView(View):
         queryset = self.get_queryset()
 
         # Next, try looking up by primary key.
-        if pk:
-            queryset = queryset.filter(pk=pk)
-
+        object_id = getattr(self, 'object_id', None)
+        slug = getattr(self, 'slug', None)
+        if object_id:
+            queryset = queryset.filter(pk=object_id)
         # Next, try looking up by slug.
         elif slug:
             slug_field = self.get_slug_field()
@@ -107,14 +108,3 @@ class DetailView(View):
             ))
 
         return names
-
-    def get_template_resource_name(self, obj):
-        """
-        Get the name to use for the resource.
-        """
-        if hasattr(obj, '_meta'):
-            return re.sub('[^a-zA-Z0-9]+', '_', 
-                    obj._meta.verbose_name.lower())
-        else:
-            return self.template_resource_name
-    

@@ -40,9 +40,14 @@ class JsonView(View):
     
 
 class ContextArgsJsonView(JsonView):
-    def get_context(self, extra='', **kwargs):
+
+    def get_extra(self, context):
+        return self.extra 
+
+    extra_context = { 'extra': get_extra }
+
+    def get_context(self):
         context = super(ContextArgsJsonView, self).get_context()
-        context['extra'] = extra
         return context
     
 
@@ -177,8 +182,9 @@ class ViewTest(unittest.TestCase):
         """
         Test any arguments from the URL are passed through to the resource.
         """
-        response = JsonView()(self.rf.get('/apple/blue/'), color='blue')
-        self.assertEqual(response.content, 'This is a blue apple')
+        response = JsonView()(self.rf.get('/apple/blue/'),
+                              extra_context={'tasty':True})
+        self.assertEqual(response.content, 'This is a tasty red apple')
     
     def test_context_arguments(self):
         """
