@@ -27,9 +27,9 @@ class ListView(View):
         """
         queryset = self.get_queryset()
         if queryset is not None:
-            self.items = queryset
+            return queryset
         elif self.itemsset is not None:
-            self.items = self.itemsset
+            return self.itemsset
         else:
             raise ImproperlyConfigured("'%s' must define 'queryset' or 'items'"
                                         % self.__class__.__name__)
@@ -101,12 +101,13 @@ class ListView(View):
 
         return names
 
+
     def get_context(self):
         """
         Get the context for this view.
         """
         context = super(ListView, self).get_context()
-        self.get_items()
+        self.items = self.get_items()
         self.paginate_items()
         template_list_name = '%s_list' % self.template_object_name
         context.update({
