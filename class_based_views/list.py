@@ -20,9 +20,6 @@ class ListView(View):
         )
         super(ListView, self).__init__(**kwargs)
 
-    def parse_params(self, *args, **kwargs):
-        super(ListView, self).parse_params(*args, **kwargs)
-
     def get_items(self):
         """
         Get the list of items for this view. This must be an interable, and may
